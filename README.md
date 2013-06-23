@@ -1,10 +1,15 @@
 Automated redistricting tools
+
 Brian Amos (brianamos@gmail.com)
+
 University of Florida
+
 http://www.brianamos.com/
+
 Last update: June 23, 2013
 
 Released under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 license.
+
 http://creativecommons.org/licenses/by-nc-sa/3.0/
 
 
@@ -21,9 +26,6 @@ Also, I've got some other scripts I'll eventually get around to cleaning up and 
 
 
 
-Python Files:
-
-------------------------
 oldbacheloracceptance.py
 ------------------------
 
@@ -49,21 +51,21 @@ Example versions the five files are available, as well, and everything's set up 
 
 As the filename suggests, the algorithm used is Old Bachelor Acceptance, first described in:
 
-Hu, T. C., Andrew B. Kahng and Chung-Wen Albert Tsao. 1995. “Old Bachelor Acceptance: A New Class of Non-Monotone Threshold Accepting Methods.” ORSA Journal on Computing 7 (4): p. 417-426.
+Hu, T. C., Andrew B. Kahng and Chung-Wen Albert Tsao. 1995. ï¿½Old Bachelor Acceptance: A New Class of Non-Monotone Threshold Accepting Methods.ï¿½ ORSA Journal on Computing 7 (4): p. 417-426.
 
 This particular implementation has an objective function that weights for two types of compactness, population deviance, the wholeness of counties within districts, and racial majority-minority districts. It has hard-coded the rejection of changes that would result in non-contiguity, and changes that would shift a district's population above or below a defined threshold.
 
 Hopefully I've commented enough in the code to give you an idea of how it works.
 
 
-----------------------------
+
 build_district_boundaries.py
 ----------------------------
 
 Generates the district boundary file needed for oldbacheloracceptance.py from the MySQL points table. Again, this is something that's slow enough that you want only want to do it once, instead of every time you run the script. Requires the MySQL module.
 
 
------------
+
 updatedb.py
 -----------
 
@@ -72,17 +74,22 @@ Takes the output file of oldbacheloracceptance.py, and puts the district values 
 Requires dbfpy: http://dbfpy.sourceforge.net/
 
 
-----------------
+
 examplefiles.zip
 ----------------
 
 As the name implies, these are example files to test-run the script. Everything should be in place in the code to run them once you set up your MySQL tables.
 
 tractpoints.sql
+
 tractneighbor.sql
+
 tractdata.sql
+
 tractinitial40.txt
+
 boundary40.txt
+
 florida_example.zip
 
 These should all be pretty self-explanatory. The three .sql's and two .txt's are needed to run oldbacheloracceptance.py, and florida_example.zip contains the shapefile that corresponds with everything. 
