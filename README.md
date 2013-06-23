@@ -1,29 +1,12 @@
-Automated redistricting tools
-
-Brian Amos (brianamos@gmail.com)
-
-University of Florida
-
-http://www.brianamos.com/
-
-Last update: June 23, 2013
-
-Released under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 license.
-
-http://creativecommons.org/licenses/by-nc-sa/3.0/
-
-
-
-
-
-
 Disclaimer up front: I'm a political scientist, not a programmer. At least, not an especially skilled one. If you find yourself scratching your head over something I've done, it's probably not your fault. Still, I thought it was worth sharing these to give people a look at one implementation of an automated redistricting algorithm. I'm open to suggestions for improvement.
 
 Also, I've got some other scripts I'll eventually get around to cleaning up and posting.
 
 
+Short Description
+-----------------
 
-
+These scripts take a legislative district map defined by subunits of geography (state map using Census tracts in the provided example) and optimize it using the Old Bachelor Acceptance algorithm. Briefly, a random district is picked, a random neighboring tract is then flipped into the district, and the improvement to the overall map on compactness, county wholeness, population deviance, and racial majority-minority districts is measured. The changes that are improvements, or are within a threshold of decline in quality, are kept, and those that are not are rejected. The OBA algorithm is noteworthy in its non-monotonically changing threshold for acceptance - improvements decrease the threshold, declines increase the threshold. The map that had minimized the scoring function after a set number of attempts is chosen as the final map.
 
 
 oldbacheloracceptance.py
@@ -43,15 +26,15 @@ A text file with the input map's district boundaries. Generating this is time-co
 
 Three MySQL tables:
 
--one with a row for each tract, with data on each (e.g., population, area, etc.)
--one with neighbor relationships, with each row representing one pairing. Each pair should be entered twice, with the orders reversed
--one with the vertices for each tract
+* one with a row for each tract, with data on each (e.g., population, area, etc.)
+* one with neighbor relationships, with each row representing one pairing. Each pair should be entered twice, with the orders reversed
+* one with the vertices for each tract
 
 Example versions the five files are available, as well, and everything's set up in the script to run from them.
 
 As the filename suggests, the algorithm used is Old Bachelor Acceptance, first described in:
 
-Hu, T. C., Andrew B. Kahng and Chung-Wen Albert Tsao. 1995. �Old Bachelor Acceptance: A New Class of Non-Monotone Threshold Accepting Methods.� ORSA Journal on Computing 7 (4): p. 417-426.
+Hu, T. C., Andrew B. Kahng and Chung-Wen Albert Tsao. 1995. "Old Bachelor Acceptance: A New Class of Non-Monotone Threshold Accepting Methods." ORSA Journal on Computing 7 (4): p. 417-426.
 
 This particular implementation has an objective function that weights for two types of compactness, population deviance, the wholeness of counties within districts, and racial majority-minority districts. It has hard-coded the rejection of changes that would result in non-contiguity, and changes that would shift a district's population above or below a defined threshold.
 
@@ -80,18 +63,24 @@ examplefiles.zip
 
 As the name implies, these are example files to test-run the script. Everything should be in place in the code to run them once you set up your MySQL tables.
 
-tractpoints.sql
-
-tractneighbor.sql
-
-tractdata.sql
-
-tractinitial40.txt
-
-boundary40.txt
-
-florida_example.zip
+* tractpoints.sql
+* tractneighbor.sql
+* tractdata.sql
+* tractinitial40.txt
+* boundary40.txt
+* florida_example.zip
 
 These should all be pretty self-explanatory. The three .sql's and two .txt's are needed to run oldbacheloracceptance.py, and florida_example.zip contains the shapefile that corresponds with everything. 
 
 One note: since my script requires contiguous tracts without holes, I've had to merge some tracts together - the column "mergedwith" in tractdata lists the GeoIDs that have been merged into the parent tract (the populations, areas, etc. have been added together, so there's no loss there).
+
+
+other info
+-------------
+* Brian Amos (brianamos@gmail.com)
+* University of Florida
+* http://www.brianamos.com/
+* Last update: June 23, 2013
+* Released under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 license.
+* http://creativecommons.org/licenses/by-nc-sa/3.0/
+
