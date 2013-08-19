@@ -1,8 +1,3 @@
-Disclaimer up front: I'm a political scientist, not a programmer. At least, not an especially skilled one. If you find yourself scratching your head over something I've done, it's probably not your fault. Still, I thought it was worth sharing these to give people a look at one implementation of an automated redistricting algorithm. I'm open to suggestions for improvement.
-
-Also, I've got some other scripts I'll eventually get around to cleaning up and posting.
-
-
 Short Description
 -----------------
 
