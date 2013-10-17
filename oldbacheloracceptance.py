@@ -22,11 +22,13 @@ population = 18801310 # state population
 districts = 40 # number of districts you have
 targetiter = 100000 # number of iterations you want the algorithm to run
 
-countyweight = 4000   # county wholeness weight
-popdevweight = 0.0004 # population deviance weight
-compactweight = 200   # area/perimeter compactness weight
-distweight = 1        # distance-from-centroid compactness weight
-giniweight = 1000     # race proportions weight
+countyweight = 3000   # county wholeness weight
+popdevweight = 0.001  # population deviance weight
+compactweight = 500   # area/perimeter compactness weight
+distweight = 1.2      # distance-from-centroid compactness weight
+invlogitweight = 1000 # race term weight
+invlogitpower = 25    # for inv logit function - probably best to leave this be
+invlogitconstant = 11 # for inv logit function - probably best to leave this be
 
 '''
 I don't do normalization of the portions of the objective function, so the weights have to do them. There's
@@ -48,8 +50,8 @@ larger values will give you wilder swings.
 
 
 targetpop = population/districts # ideal population for each district
-minpop = targetpop - (targetpop * 0.03) # | if you want to set hard caps on how much a district's population can
-maxpop = targetpop + (targetpop * 0.03) # | vary from the ideal, you can set that here.
+minpop = targetpop - (targetpop * 0.05) # | if you want to set hard caps on how much a district's population can
+maxpop = targetpop + (targetpop * 0.05) # | vary from the ideal, you can set that here.
 
 
 
@@ -150,21 +152,16 @@ def getcurscore():
     for bginfo in attributes:
 
         rawlength = sqrt((curcenters[attributes[bginfo][13]][0] - attributes[bginfo][1][0])**2 + (curcenters[attributes[bginfo][13]][1] - attributes[bginfo][1][1])**2)
-        distsum += (rawlength - curmeans[attributes[bginfo][13]])/curstdevs[attributes[bginfo][13]]
+        distsum += ((rawlength - curmeans[attributes[bginfo][13]])/curstdevs[attributes[bginfo][13]])**2
         
     # county wholeness
 
-    countysum = 0.0
-
-    for coslice in countypop:
-
-        cotemp = GRLC(countypop[coslice])
-        countysum += (1 - cotemp[1])
+    countysum = getCountyFigures()
 
     # race
 
-    ginilist = getGINIList()
-    tginisum = sum(ginilist)
+    invlogitlist = getInvLogitList()
+    tinvlogitsum = sum(invlogitlist)
 
     # population deviation
 
@@ -176,19 +173,57 @@ def getcurscore():
         popsum += abs(populations[i] - targetpop)
         i += 1
 
-    return [countyweight * countysum, popdevweight * popsum, compactweight * compactsum, giniweight * tginisum, distweight * distsum]
+    return [countyweight * countysum, popdevweight * popsum, compactweight * compactsum, invlogitweight * tinvlogitsum, distweight * distsum]
         
 
+def getCountyFigures():
+
+    # i use the proportion of tracts that have an adjacent tract in the same district, but a different county
+
+    templist = []
+    for i in range(districts):
+        templist.append(0)
+
+        
+    for bginfo in attributes:
+
+        addto = 0
+
+        for checkneigh in attributes[bginfo][14]:
+
+            if attributes[bginfo][13] == attributes[checkneigh][13] and attributes[bginfo][0] != attributes[checkneigh][0]:
+
+                addto = 1
+
+        templist[attributes[bginfo][13]] += addto
+
+    finalscore = 0.0
+
+    for i in range(districts):
+
+        finalscore += templist[i]/float(districtcounts[i])
+
+    return finalscore/districts
 
 
-def getGINIList():
 
-    # seems redundant, and I could have set this up so that each race had its own portion of the objective score and removed the need for this
-    # (the need being that you might want to emphasize one race's M-M districts stronger than another's). oh well.
+def getInvLogitList():
 
-    return [3 * (1 - getGINI(4,3)), 1 - getGINI(5,3)]
+    # inverse logit, properly scaled, has good properties for encouraging majority-minority districts
+    # when a district is near the threshold, but being indifferent when well above or below it
+
+    blackinvs = 0.0
+    for i in spitValues(4,3):
+
+        blackinvs += 1/((2.71828**(invlogitpower * i - invlogitconstant))+1)
+
+    hispinvs = 0.0
+    for i in spitValues(5,3):
+
+        hispinvs += 1/((2.71828**(invlogitpower * i - invlogitconstant))+1)
 
 
+    return [hispinvs,blackinvs]
 
 def spitValues(numer, denom):
 
@@ -221,70 +256,6 @@ def spitValues(numer, denom):
     return finalvalues
 
 
-        
-
-def getGINI(numer, denom):
-
-    result = GRLC(spitValues(numer,denom))
-    
-    return result[1]
-
-
-def GRLC(values):
-
-    '''
-    Created on July 24, 2011
-    @author: Dilum Bandara
-    @version: 0.1
-    @license: Apache License v2.0
-
-       Copyright 2012 H. M. N. Dilum Bandara, Colorado State University
-
-       Licensed under the Apache License, Version 2.0 (the "License");
-       you may not use this file except in compliance with the License.
-       You may obtain a copy of the License at
-
-           http://www.apache.org/licenses/LICENSE-2.0
-
-       Unless required by applicable law or agreed to in writing, software
-       distributed under the License is distributed on an "AS IS" BASIS,
-       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-       See the License for the specific language governing permissions and
-       limitations under the License.
-    '''
-
-    # this function borrowed from Dilum Bandara, see above text. i removed portions that calculated the Robin Hood index,
-    # and the original function returned the lorenz points, which i didn't need.
-
-    '''
-    Calculate Gini index, Gini coefficient, Robin Hood index, and points of 
-    Lorenz curve based on the instructions given in 
-    www.peterrosenmai.com/lorenz-curve-graphing-tool-and-gini-coefficient-calculator
-    Lorenz curve values as given as lists of x & y points [[x1, x2], [y1, y2]]
-    @param values: List of values
-    @return: [Gini index, Gini coefficient, Robin Hood index, [Lorenz curve]] 
-    '''
-    
-    n = len(values)
-    assert(n > 0), 'Empty list of values'
-    sortedValues = sorted(values) #Sort smallest to largest
-
-    #Find cumulative totals
-    cumm = [0]
-    for i in range(n):
-        cumm.append(sum(sortedValues[0:(i + 1)]))
-
-    #Calculate Lorenz points
-    LorenzPoints = [[], []]
-    sumYs = 0           #Some of all y values
-    for i in range(1, n + 2):
-        x = 100.0 * (i - 1)/n
-        y = 100.0 * (cumm[i - 1]/float(cumm[n]))
-        sumYs += y
-    
-    giniIdx = 100 + (100 - 2 * sumYs)/n #Gini index 
-
-    return [giniIdx, giniIdx/100]
 
 
 def buildneighborbgs(dist):
@@ -331,8 +302,8 @@ def reassignpiece(oldpiece, newpiece):
 
 
 #initialize lists
-ginilist = []
-countypop = {}
+invlogitlist = []
+districtcounts = []
 curcenters = []
 curstdevs = []
 curmeans = []
@@ -345,6 +316,7 @@ i = 0
 while i < districts:
     i += 1
     populations.append(0)
+    districtcounts.append(0)
     areas.append(0.0)
     perimeters.append(0.0)
     districtboundaries.append([])
@@ -377,7 +349,7 @@ following indexes:
 16: Placeholder for Checking for Contiguity
 17: Tract Area
 
-Sorry for hard-coding the numbers and making it a pain in the ass for you to change them.
+Sorry for hard-coding the numbers and making it a pain for you to change them.
 '''
     
 db=_mysql.connect(mysqlhostname,mysqlusername,mysqlpassword,mysqldatabase)
@@ -444,7 +416,7 @@ while point:
 
     
     point = r.fetch_row()
-
+    
 del db
 del secdb
 del tempdists
@@ -457,22 +429,12 @@ print "attributes loaded"
 
 # initialize some variables that will be used throughout the process
 
-checkcounties = []
-
-for bginfo in attributes:
-    if (checkcounties.count(attributes[bginfo][0]) == 0):
-        checkcounties.append(attributes[bginfo][0])
-
-
-for i in checkcounties:
-    countypop[i] = []
-    countypop[i].extend(populations)
 
 for bginfo in attributes:
 
     areas[attributes[bginfo][13]] += attributes[bginfo][17]
-    countypop[attributes[bginfo][0]][attributes[bginfo][13]] = countypop[attributes[bginfo][0]][attributes[bginfo][13]] + attributes[bginfo][2]
     populations[attributes[bginfo][13]] = populations[attributes[bginfo][13]] + attributes[bginfo][2]
+    districtcounts[attributes[bginfo][13]] += 1    
 
 
 for dist in range(districts):
@@ -517,8 +479,9 @@ for i in range(districts):
     perimeters[i] = curpertotal
 
 
-ginilist = getGINIList()
-ginisum = sum(ginilist)
+invlogitlist = getInvLogitList()
+invlogitsum = sum(invlogitlist)
+countyscore = getCountyFigures()
 
 neighbordict = {}
 
@@ -576,8 +539,6 @@ while curiter < targetiter:
 
     curdist = random.randint(0, districts - 1)  # pick a random district to work with
 
-    if populations[curdist] > maxpop: continue  # bail out now if the population is above the hard-coded level
-
     potential = neighbordict[curdist]  # get the district's neighbors
 
     if potential == 0:  # if there aren't any neighbors, something's gone terribly wrong.
@@ -593,7 +554,8 @@ while curiter < targetiter:
 
     otherdist = attributes[check][13]
 
-    if populations[otherdist] < minpop: continue  # bail out now if the district we're taking from has too small a population
+    if populations[curdist] + attributes[check][2] > maxpop: continue  # bail out now if the population is above the hard-coded level
+    if populations[otherdist] - attributes[check][2] < minpop: continue  # bail out now if the district we're taking from has too small a population
     
     attributes[check][13] = curdist
     dist = otherdist
@@ -655,24 +617,14 @@ while curiter < targetiter:
     # distance-from-centroid compactness
 
     areaconvex = sqrt((curcenters[curdist][0] - attributes[check][1][0])**2 + (curcenters[curdist][1] - attributes[check][1][1])**2)
-    areadiff1 = (areaconvex - curmeans[curdist])/curstdevs[curdist]
+    areadiff1 = ((areaconvex - curmeans[curdist])/curstdevs[curdist])**2
 
     areaconvex = sqrt((curcenters[otherdist][0] - attributes[check][1][0])**2 + (curcenters[otherdist][1] - attributes[check][1][1])**2)
-    areadiff2 = (areaconvex - curmeans[otherdist])/curstdevs[otherdist]
+    areadiff2 = ((areaconvex - curmeans[otherdist])/curstdevs[otherdist])**2
 
-    # i use gini coefficients to test the wholeness of counties
+    # wholeness of counties
 
-    propslice = []
-    propslice.extend(countypop[attributes[check][0]])
-
-    startcotemp = GRLC(propslice)
-    startcogini = 1 - startcotemp[1]
-
-    propslice[curdist] += attributes[check][2]
-    propslice[otherdist] -= attributes[check][2]
-
-    endcotemp = GRLC(propslice)
-    endcogini = 1 - endcotemp[1]
+    newcountyscore = getCountyFigures()
 
     # population deviance
 
@@ -833,15 +785,15 @@ while curiter < targetiter:
 
     otherperchange = addedperimeter - removedperimeter
 
-    # i also use gini coefficients for the racial majority-minority district creation
+    # racial majority-minority district creation
     
-    ginilist = getGINIList()
-    newginisum = sum(ginilist)
+    invlogitlist = getInvLogitList()
+    newinvlogitsum = sum(invlogitlist)
 
 
     # alright, here's the objective function. we're looking to minimize the score, so lower is better
     
-    checkdiff = (distweight * (areadiff1 - areadiff2)) + (compactweight * (compact1 + compact2)) + (countyweight * (endcogini - startcogini)) + (popdevweight * (popdev1 + popdev2)) + (giniweight * (newginisum - ginisum))
+    checkdiff = (distweight * (areadiff1 - areadiff2)) + (compactweight * (compact1 + compact2)) + (countyweight * (newcountyscore - countyscore)) + (popdevweight * (popdev1 + popdev2)) + (invlogitweight * (newinvlogitsum - invlogitsum))
 
     '''
     # if you want information about how each portion of the objective function is contributing, uncomment this
@@ -849,9 +801,10 @@ while curiter < targetiter:
     print "distance compactness: ", distweight * (areadiff1 - areadiff2)
     print "county: ", countyweight * (endcogini - startcogini)
     print "popdev: ", popdevweight * (popdev1 + popdev2)
-    print "gini: ", giniweight * (newginisum - ginisum)
+    print "invlogit: ", invlogitweight * (newinvlogitsum - invlogitsum)
     print checkdiff, threshold
     '''
+    
 
     # the cool part about the OBA algorithm is its threshold, which allows for changes that make the map worse in an attempt to ultimately improve it.
     # the adjustments make it non-monotonic, which is doubly cool. each rejection raises the threshold, each acceptance lowers it.
@@ -897,13 +850,14 @@ while curiter < targetiter:
                         neighbordict[otherdist] = list(set(neighbordict[otherdist]))
 
 
-        ginisum = newginisum # racial ginis
+        invlogitsum = newinvlogitsum # racial inv logits
+        countyscore = newcountyscore # county score        
         
 
         # populations of each district in each county
 
-        countypop[attributes[check][0]][curdist] += attributes[check][2]
-        countypop[attributes[check][0]][otherdist] -= attributes[check][2]
+        districtcounts[curdist] += 1
+        districtcounts[otherdist] -= 1
 
         # district populations
 
@@ -971,6 +925,9 @@ while curiter < targetiter:
 
             f.close()
 
+
+
+            
 '''
             # this is a bit of error checking that creates a file that can be loaded into arcgis using the Samples toolbox.
             # when i was writing this, i wanted to make sure the district boundaries in memory matched what the district
